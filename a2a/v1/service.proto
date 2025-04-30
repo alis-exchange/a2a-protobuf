@@ -1,0 +1,264 @@
+syntax = "proto3";
+
+package a2a.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+
+// Represents a service interface definition for agents implementing the Agent2Agent (A2A) protocol.
+service A2A {
+    // Retrieves the agent's card.
+    rpc GetAgentCard(GetAgentCardRequest) returns (AgentCard);
+    // Sends a task to the agent for synchronous processing.
+    rpc SendTask(SendTaskRequest) returns (SendTaskResponse);
+    // TODO: Expand on supported methods
+}
+
+// Request message for the GetAgentCard method.
+message GetAgentCardRequest {}
+
+// Request message for the SendTask method.
+message SendTaskRequest {
+    // Unique identifier for the task being initiated or continued.
+    string id = 1;
+    // Task send parameters
+    TaskSendParams params = 2;
+}
+
+// Response message for the SendTask method.
+message SendTaskResponse {
+    // The responded task
+    Task task = 1;
+}
+
+// Represents parameters for the SendTask or SendSubscribeTask methods
+message TaskSendParams {
+    // Identifier for the session this task belongs to.
+    // If not provided, a new session might be implicitly created depending on the agent.
+    string session_id = 1;
+    // The message content to send to the agent for processing.
+    Message message = 2;
+    // Optional push notification information for receiving notifications about this task.
+    // Requires agent capability.
+    PushNotificationConfig push_notification_config = 3;
+    // Optional parameter to specify how much message history to include in the response.
+    int32 history_length = 4;
+    // Optional metadata associated with sending the request.
+    google.protobuf.Struct metadata = 5;
+}
+
+// Represents the metadata card for an agent, describing its properties and capabilities.
+message AgentCard {
+    // The name of the Agent.
+    string name = 1;
+    // An optional description of the agent.
+    string description = 2;
+    // The base URL endpoint for interacting with the agent.
+    string url = 3;
+    // Information about the provider of the agent.
+    AgentProvider provider = 4;
+    // The version identifier for the agent or its API.
+    string version = 5;
+    // An optional URL pointing to the agent's documentation.
+    string documentation_url = 6;
+    // The capabilities supported by the agent.
+    AgentCapabilities capabilities = 7;
+    // Authentication details required to interact with the agent.
+    AgentAuthentication authentication = 8;
+    // Default input modes supported by the agent (e.g., 'text', 'file', 'json').
+    repeated string default_input_modes = 9;
+    // Default output modes supported by the agent (e.g., 'text', 'file', 'json').
+    repeated string default_output_modes = 10;
+    // List of specific skills offered by the agent.
+    repeated AgentSkill skills = 11;
+}
+
+// Represents the provider or organization behind an agent.
+message AgentProvider {
+    // The name of the organization providing the agent.
+    string organisation = 1;
+    // URL associated with the agent provider.
+    string url = 2;
+}
+
+// Describes the capabilities of an agent.
+message AgentCapabilities {
+    // Indicates if the agent supports streaming responses. Defaults to false.
+    bool streaming = 1;
+    // Indicates if the agent supports push notification mechanisms. Defaults to false.
+    bool push_notifications = 2;
+    // Indicates if the agent supports providing state transition history. Defaults to false.
+    bool state_transition_history = 3;
+}
+
+// Defines the authentication schemes and credentials for an agent.
+message AgentAuthentication {
+    // List of supported authentication schemes.
+    repeated string schemes = 1;
+    // Credentials for authentication. 
+    string credentials = 2;
+}
+
+// Defines a specific skill or capability offered by an agent.
+message AgentSkill {
+    // Unique identifier for the skill.
+    string id = 1;
+    // Human-readable name of the skill.
+    string name = 2;
+    // Optional description of the skill.
+    string description = 3;
+    // Optional list of tags associated with the skill for categorization.
+    repeated string tags = 4;
+    // Optional list of example inputs or use cases for the skill.
+    repeated string examples = 5;
+    // Optional list of input modes supported by this skill, overriding agent defaults.
+    repeated string input_modes = 6;
+    // Optional list of output modes supported by this skill, overriding agent defaults.
+    repeated string output_modes = 7;
+}
+
+// Represents a task being processed by an agent.
+message Task {
+    // Unique identifier for the task.
+    string id = 1;
+    // Optional identifier for the session this task belongs to.
+    string session_id = 2;
+    // The current status of the task.
+    TaskStatus status = 3;
+    // Optional list of artifacts associated with the task (e.g., outputs, intermediate files).
+    repeated Artifact artifacts = 4;
+    // Collection of Messages exchanged between the client and agent.
+    repeated Message history = 5;
+}
+
+// Represents the status of a task at a specific point in time.
+message TaskStatus {
+    // The current state of the task.
+    State state = 1;
+    // An optional message associated with the current status (e.g., progress update, final response).
+    Message message = 2;
+    // The timestamp when this status was recorded.
+    google.protobuf.Timestamp timestamp = 3;
+
+    // Represents the state of a task within the A2A protocol.
+    enum State {
+        // State unspecified
+        STATE_UNSPECIFIED = 0;
+        // Submitted
+        SUBMITTED = 1;
+        // Working
+        WORKING = 2;
+        // Input required
+        INPUT_REQUIRED = 3;
+        // Completed
+        COMPLETED = 4;
+        // Cancelled
+        CANCELLED = 5;
+        // Failed
+        FAILED = 6;
+        // Unknown
+        UNKNOWN = 7;
+    }
+}
+
+// Represents a message exchanged between a user and an agent.
+message Message {
+    // The role of the sender.
+    Role role = 1;
+    // The content of the message, composed of one or more parts.
+    repeated Part parts = 2;
+    // Optional metadata associated with the message.
+    google.protobuf.Struct metadata = 3;
+
+    // Represents the role of the sender of a message.
+    enum Role {
+        // Role unspecified
+        ROLE_UNSPECIFIED = 0;
+        // User role
+        USER = 1;
+        // Agent role
+        AGENT = 2;
+    }
+}
+
+// Represents a single part of a multi-part message. Can be text, file, or data.
+// Exactly one field of either text, file or data should be set.
+// Using multiple fields within the same Part is considered invalid.
+// The specified Type must also match the corresponding field that is configured.
+message Part {
+    // Type identifier of the part.
+    Type type = 1;
+    // Represents the part content.
+    oneof content {
+        // The text content.
+        string text = 2;
+        // The file content, provided either inline or via URI.
+        FileContent file = 3;
+        // The structured data content as a JSON object.
+        google.protobuf.Struct data = 4;
+    }
+    // Optional metadata associated with the part.
+    google.protobuf.Struct metadata = 5;
+
+    // Type
+    enum Type {
+        // Type unspecified
+        TYPE_UNSPECIFIED = 0;
+        // Text
+        TEXT = 1;
+        // File
+        FILE = 2;
+        // Data
+        DATA = 3;
+    }
+
+    // Represents the content of a file, either as base64 encoded bytes or a URI.
+    message FileContent {
+        // Name of the file.
+        string name = 1;
+        // MIME type of the file content.
+        string mime_type = 2;
+        // Use oneof to ensure either bytes or uri is provided, but not both.
+        // File content encoded as a Base64 string. Use this OR `uri`.
+        string bytes = 3;
+        // URI pointing to the file content. Use this OR `bytes`.
+        string uri = 4;
+    }
+}
+
+// Represents an artifact generated or used by a task, potentially composed of multiple parts.
+message Artifact {
+    // Optional name for the artifact.
+    string name = 1;
+    // Optional description of the artifact.
+    string description = 2;
+    // The constituent parts of the artifact.
+    repeated Part parts = 3;
+    // Optional index for ordering artifacts, especially relevant in streaming or updates.
+    int32 index = 4;
+    // Optional flag indicating if this artifact content should append to previous content (for streaming).
+    bool append = 5;
+    // Optional metadata associated with the artifact.
+    google.protobuf.Struct metadata = 6;
+    // Optional flag indicating if this is the last chunk of data for this artifact (for streaming).
+    bool last_chunk = 7;
+}
+
+// Represents the push notification information associated with a specific task ID.
+message TaskPushNotificationConfig {
+  // The ID of the task the notification config is associated with.
+  string id = 1;
+  // The push notification configuration details.
+  PushNotificationConfig push_notification_config = 2;
+}
+
+// Information required for setting up push notifications.
+message PushNotificationConfig {
+    // Push URL.
+    string url = 1;
+    // A token to be included in push notification requests for verification/authentication.
+    string token = 2;
+    // Optional authentication details needed by the agent to call the notification URL.
+    AgentAuthentication authentication = 3;
+}
